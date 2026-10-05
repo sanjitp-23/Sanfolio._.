@@ -236,7 +236,7 @@ body[data-theme="dark"] {
   height: 100%;
   width: 0%;
   background: var(--yellow);
-  transition: width 0.1s ease;
+  /* No width transition: it is driven every scroll frame, so a transition only adds lag + extra layout */
   border-right: 4px solid var(--border);
 }
 
@@ -980,7 +980,7 @@ body[data-theme="dark"] .job-desc i {
 .paper-tear-bottom {
   margin-top: -1px;
   margin-bottom: -1px;
-  transition: margin-top 0.1s ease-out;
+  /* margin-top is driven every scroll frame; no transition (avoids lag + extra layout passes) */
   position: relative;
   z-index: 3;
   perspective: 1000px;
@@ -1046,7 +1046,7 @@ body[data-theme="dark"] .job-desc i {
   height: 300px;
   background: #d0d0d0;
   position: relative;
-  transition: height 0.1s ease-out;
+  /* height is driven every scroll frame; no transition (avoids lag + extra layout passes) */
 }
 
 .hero-right {

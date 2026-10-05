@@ -84,19 +84,30 @@
         navLinks.forEach(l => l.classList.toggle('pill-on', l === link));
     }
     const activeLink = () => navLinks.find(l => l.classList.contains('active')) || (window.scrollY < 200 ? navLinks[0] : null);
-    const refreshPill = () => { if (!hoveringNav) placePill(activeLink()); };
+    // placePill measures the link (a layout read), so skip it while the target hasn't changed
+    let pillLink;
+    const refreshPill = (force = false) => {
+        if (hoveringNav) return;
+        const link = activeLink();
+        if (!force && link === pillLink) return;
+        pillLink = link;
+        placePill(link);
+    };
+    const remeasurePill = () => refreshPill(true);
 
     if (pill && navLinks.length) {
         // The inline script toggles .active as you scroll; follow it
-        const mo = new MutationObserver(refreshPill);
+        const mo = new MutationObserver(() => refreshPill());
         navLinks.forEach(l => {
             mo.observe(l, { attributes: true, attributeFilter: ['class'] });
-            l.addEventListener('mouseenter', () => { hoveringNav = true; placePill(l); });
+            l.addEventListener('mouseenter', () => { hoveringNav = true; pillLink = undefined; placePill(l); });
         });
-        document.querySelector('.nav-links').addEventListener('mouseleave', () => { hoveringNav = false; refreshPill(); });
-        window.addEventListener('resize', refreshPill);
-        document.fonts?.ready.then(refreshPill);
-        setTimeout(refreshPill, 400);
+        document.querySelector('.nav-links').addEventListener('mouseleave', () => { hoveringNav = false; remeasurePill(); });
+        window.addEventListener('resize', remeasurePill);
+        document.fonts?.ready.then(remeasurePill);
+        setTimeout(remeasurePill, 400);
+        // The header compacts when scrolled, which moves the links: re-place once the size change lands
+        if (navbar) navbar.addEventListener('transitionend', e => { if (e.target === navbar || e.target.classList.contains('nav-content')) remeasurePill(); });
     }
 
     let navTicking = false;
@@ -421,12 +432,20 @@
 
         // Eyes follow the cursor
         const pupils = byte.querySelectorAll('.pupil');
-        document.addEventListener('pointermove', e => {
+        // One measurement per frame at most, instead of a layout read on every pointer event
+        let eyeTarget = null;
+        const moveEyes = () => {
+            const { x, y } = eyeTarget;
+            eyeTarget = null;
             const r = byte.getBoundingClientRect();
-            const angle = Math.atan2(e.clientY - (r.top + r.height * 0.42), e.clientX - (r.left + r.width / 2));
-            const dist = Math.min(3.4, Math.hypot(e.clientX - r.left, e.clientY - r.top) / 60);
+            const angle = Math.atan2(y - (r.top + r.height * 0.42), x - (r.left + r.width / 2));
+            const dist = Math.min(3.4, Math.hypot(x - r.left, y - r.top) / 60);
             const dx = Math.cos(angle) * dist, dy = Math.sin(angle) * dist;
             pupils.forEach(p => p.setAttribute('transform', `translate(${dx.toFixed(2)} ${dy.toFixed(2)})`));
+        };
+        document.addEventListener('pointermove', e => {
+            if (!eyeTarget) requestAnimationFrame(moveEyes);
+            eyeTarget = { x: e.clientX, y: e.clientY };
         }, { passive: true });
 
         // Blink, nap when idle, wake up when you come back
@@ -521,12 +540,18 @@
                 unlock('physicist');
             };
 
-            const chips = list.map(([label, color, icon], i) => {
+            // Insert every chip first, then measure: one layout pass instead of one per chip
+            const chipEls = list.map(([label, color, icon]) => {
                 const el = document.createElement('span');
                 el.className = 'pg-chip';
                 el.style.setProperty('--c', color);
                 el.innerHTML = `<i class="${icon}"></i>${label}`;
-                box.appendChild(el);
+                return el;
+            });
+            box.append(...chipEls);
+
+            const chips = list.map((_, i) => {
+                const el = chipEls[i];
                 const w = el.offsetWidth, h = el.offsetHeight;
                 const body = Bodies.rectangle(40 + Math.random() * (W - 80), -60 - i * 45, w, h, {
                     chamfer: { radius: 4 }, restitution: 0.45, friction: 0.3, density: 0.002,
@@ -541,7 +566,7 @@
                         touched();
                     });
                 }
-                return { el, body, w, h };
+                return { el, body, w, h, last: '' };
             });
             // Make it rain: chips drop in one after another
             chips.forEach((c, i) => setTimeout(() => Composite.add(engine.world, c.body), reduceMotion ? 0 : i * 70));
@@ -558,7 +583,8 @@
             }
 
             Events.on(engine, 'afterUpdate', () => {
-                chips.forEach(({ el, body, w, h }) => {
+                chips.forEach(chip => {
+                    const { el, body, w, h } = chip;
                     const { x, y } = body.position;
                     if (body.isSleeping) return;
                     // Rescue anything that escaped through a wall at high speed
@@ -566,7 +592,12 @@
                         Body.setPosition(body, { x: W / 2, y: H / 3 });
                         Body.setVelocity(body, { x: 0, y: 0 });
                     }
-                    el.style.transform = `translate(${(x - w / 2).toFixed(1)}px, ${(y - h / 2).toFixed(1)}px) rotate(${body.angle.toFixed(3)}rad)`;
+                    const transform = `translate(${(x - w / 2).toFixed(1)}px, ${(y - h / 2).toFixed(1)}px) rotate(${body.angle.toFixed(3)}rad)`;
+                    // Resting chips produce the same string every tick; skip the style write
+                    if (transform !== chip.last) {
+                        chip.last = transform;
+                        el.style.transform = transform;
+                    }
                 });
             });
 

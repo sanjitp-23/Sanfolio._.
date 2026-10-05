@@ -449,26 +449,36 @@
         cursor.setAttribute('aria-hidden', 'true');
         document.body.appendChild(cursor);
 
-        let mouseX = 0, mouseY = 0, curX = 0, curY = 0;
+        let mouseX = 0, mouseY = 0, curX = 0, curY = 0, following = false;
         const interactive = 'a, button, .project-card, .tag, .tech-badge, .stat-box, .checkpoint, .timeline-item-flat';
+
+        // Eases toward the pointer, then goes idle once it has caught up (no rAF loop burning frames at rest)
+        const follow = () => {
+            curX += (mouseX - curX) * 0.22;
+            curY += (mouseY - curY) * 0.22;
+            if (Math.abs(mouseX - curX) < 0.1 && Math.abs(mouseY - curY) < 0.1) {
+                curX = mouseX;
+                curY = mouseY;
+                following = false;
+            } else {
+                requestAnimationFrame(follow);
+            }
+            cursor.style.transform = `translate3d(${curX}px, ${curY}px, 0)`;
+        };
 
         document.addEventListener('pointermove', e => {
             mouseX = e.clientX;
             mouseY = e.clientY;
             cursor.classList.add('active');
             cursor.classList.toggle('hovering', !!e.target.closest(interactive));
-        });
+            if (!following) {
+                following = true;
+                requestAnimationFrame(follow);
+            }
+        }, { passive: true });
         document.addEventListener('pointerdown', () => cursor.classList.add('pressed'));
         document.addEventListener('pointerup', () => cursor.classList.remove('pressed'));
         document.documentElement.addEventListener('pointerleave', () => cursor.classList.remove('active'));
-
-        const follow = () => {
-            curX += (mouseX - curX) * 0.22;
-            curY += (mouseY - curY) * 0.22;
-            cursor.style.transform = `translate3d(${curX}px, ${curY}px, 0)`;
-            requestAnimationFrame(follow);
-        };
-        requestAnimationFrame(follow);
     }
 
     // ---------- Hero playground: parallax, draggable stickers, talking portrait, live clock ----------
@@ -526,12 +536,16 @@
         const hero = document.querySelector('.hero');
         let dragging = null;
 
-        // Depth parallax: stickers drift against the mouse, the frame tilts toward it
-        hero.addEventListener('pointermove', e => {
-            if (dragging) return;
+        // Depth parallax: stickers drift against the mouse, the frame tilts toward it.
+        // Coalesced to one update per frame (high-rate mice can fire several moves per frame).
+        let parallaxPoint = null;
+        const applyParallax = () => {
+            const p = parallaxPoint;
+            parallaxPoint = null;
+            if (!p || dragging) return;
             const r = heroWrap.getBoundingClientRect();
-            const nx = (e.clientX - (r.left + r.width / 2)) / window.innerWidth;
-            const ny = (e.clientY - (r.top + r.height / 2)) / window.innerHeight;
+            const nx = (p.x - (r.left + r.width / 2)) / window.innerWidth;
+            const ny = (p.y - (r.top + r.height / 2)) / window.innerHeight;
             heroWrap.style.setProperty('--tilt-x', `${(-ny * 6).toFixed(2)}deg`);
             heroWrap.style.setProperty('--tilt-y', `${(nx * 8).toFixed(2)}deg`);
             stickers.forEach(st => {
@@ -539,8 +553,14 @@
                 st.style.setProperty('--px', `${(-nx * depth * 2).toFixed(1)}px`);
                 st.style.setProperty('--py', `${(-ny * depth * 2).toFixed(1)}px`);
             });
-        });
+        };
+        hero.addEventListener('pointermove', e => {
+            if (dragging) return;
+            if (!parallaxPoint) requestAnimationFrame(applyParallax);
+            parallaxPoint = { x: e.clientX, y: e.clientY };
+        }, { passive: true });
         hero.addEventListener('pointerleave', () => {
+            parallaxPoint = null;
             heroWrap.style.setProperty('--tilt-x', '0deg');
             heroWrap.style.setProperty('--tilt-y', '0deg');
             stickers.forEach(st => {
@@ -809,14 +829,24 @@
         const GRID = 20;
         const mod = (n, m) => ((n % m) + m) % m;
 
+        // The wrapper's page offset only changes with layout, so cache it instead of
+        // calling getBoundingClientRect (a forced reflow) on every animation frame
+        let wrapLeft = 0, wrapTop = 0;
+        const measureWrapper = () => {
+            const r = pageWrapper.getBoundingClientRect();
+            wrapLeft = r.left + window.scrollX;
+            wrapTop = r.top + window.scrollY;
+        };
+        measureWrapper();
+        new ResizeObserver(measureWrapper).observe(document.body);
+
         const moveSpot = () => {
             sx += (tx - sx) * 0.16;
             sy += (ty - sy) * 0.16;
             spot.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
             // Keep the spotlight's grid locked to the page grid (which scrolls with the wrapper)
-            const wr = pageWrapper.getBoundingClientRect();
-            spot.style.setProperty('--gx', `${mod(wr.left - (sx - 280), GRID)}px`);
-            spot.style.setProperty('--gy', `${mod(wr.top - (sy - 280), GRID)}px`);
+            spot.style.setProperty('--gx', `${mod(wrapLeft - window.scrollX - (sx - 280), GRID)}px`);
+            spot.style.setProperty('--gy', `${mod(wrapTop - window.scrollY - (sy - 280), GRID)}px`);
             if (Math.abs(tx - sx) > 0.3 || Math.abs(ty - sy) > 0.3) {
                 requestAnimationFrame(moveSpot);
             } else {

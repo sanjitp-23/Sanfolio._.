@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Sanjit P</title>
+  <!-- Hard offset shadow -->
+  <rect x="9" y="9" width="52" height="52" rx="9" fill="#000"/>
+  <!-- Tile -->
+  <rect x="3" y="3" width="52" height="52" rx="9" fill="#ffd93d" stroke="#000" stroke-width="4"/>
+  <!-- Geometric S built from two stacked half-rounds -->
+  <path d="M39 15.5H23.5a7.75 7.75 0 0 0 0 15.5h9a7.75 7.75 0 0 1 0 15.5H16"
+        fill="none" stroke="#000" stroke-width="7" stroke-linecap="square" stroke-linejoin="round"/>
+  <!-- Pink full stop, like "Sanjit P." -->
+  <rect x="44.5" y="41" width="7.5" height="7.5" rx="1.5" fill="#ff6b9d" stroke="#000" stroke-width="2.5"/>
+</svg>

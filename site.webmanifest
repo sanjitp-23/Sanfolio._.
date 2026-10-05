@@ -1,0 +1,13 @@
+{
+  "name": "Sanjit P — Product Developer",
+  "short_name": "Sanjit P",
+  "description": "Product-minded developer building full-stack web platforms and Android apps with AI built in.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffd93d",
+  "theme_color": "#ffd93d",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
